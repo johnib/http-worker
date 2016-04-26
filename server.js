@@ -1,25 +1,42 @@
 "use strict";
 
-/* dependencies */
-var aws = require('aws-sdk'),
-    express = require('express'),
-    bodyParser = require('body-parser'),
-    morgan = require('morgan');
-
 var port = process.env.PORT || 8080,
     accessKeyID = process.env.AccessKeyID,
     secretKey = process.env.SecretKey,
     region = process.env.Region || 'us-east-1',
     s3Bucket = process.env.S3Bucket || 'image-viewer-app';
 
+/* dependencies */
+var aws = require('aws-sdk');
+aws.config.update({
+  accessKeyId: accessKeyID,
+  secretAccessKey: secretKey
+});
+
+var express = require('express'),
+    bodyParser = require('body-parser'),
+    i = require('./imageHandler'),
+    q = require('q'),
+    morgan = require('morgan');
+
 var app = express();
 var jsonParser = bodyParser.json();
 
 app.use(morgan('combined')); // register morgan library for logging
 app.post('/', jsonParser, function (req, res) {
-  console.log(JSON.stringify(req.body));
 
-  res.sendStatus(200);
+  i.parse(req.body)
+      .then(i.s3GetObject)
+      .then(i.makeThumbnail)
+      .then(i.s3PutObject)
+      .then(i.updateDatabase)
+      .then(function () {
+        res.sendStatus(200).end(); // makes sqsd delete the message from queue
+      })
+      .catch(function (err) {
+        console.error(err);
+        res.sendStatus(503).end(); // prevents sqsd from deleting the message
+      });
 });
 
 app.listen(port);
