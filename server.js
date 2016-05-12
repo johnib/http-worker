@@ -2,9 +2,7 @@
 
 var port = process.env.PORT || 8080,
     accessKeyID = process.env.AccessKeyID,
-    secretKey = process.env.SecretKey,
-    region = process.env.Region || 'us-east-1',
-    s3Bucket = process.env.S3Bucket || 'image-viewer-app';
+    secretKey = process.env.SecretKey;
 
 /* dependencies */
 var aws = require('aws-sdk');
@@ -29,7 +27,6 @@ app.post('/', jsonParser, function (req, res) {
       .then(i.s3GetObject)
       .then(i.makeThumbnail)
       .then(i.s3PutObject)
-      .then(i.updateDatabase)
       .then(function () {
         res.sendStatus(200).end(); // makes sqsd delete the message from queue
       })

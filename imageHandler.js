@@ -5,7 +5,7 @@
 var aws = require('aws-sdk'),
     s3 = new aws.S3(),
     q = require('q'),
-    im = require('imagemagick'),
+    gm = require('gm').subClass({imageMagick: true}),
     _ = require('lodash');
 
 function parse(sqsMessage) {
@@ -34,6 +34,7 @@ function s3GetObjectPromise(params) {
     } else {
       params.Body = data.Body;
       params.ContentType = data.ContentType;
+
       defer.resolve(params);
     }
   });
@@ -43,6 +44,7 @@ function s3GetObjectPromise(params) {
 
 function s3PutObjectPromise(params) {
   var defer = q.defer();
+  params.ACL = 'public-read';
 
   s3.putObject(params, function (err, data) {
     if (err) {
@@ -58,32 +60,26 @@ function s3PutObjectPromise(params) {
 function makeThumbnail(image) {
   var defer = q.defer();
 
-  im.resize({
-    srcData: image.Body,
-    width: 256
-  }, function (err, stdout) {
-    if (err) {
-      defer.reject(err);
+  gm(image.Body, 'image')
+      .resize(256, 256)
+      .toBuffer('JPG', function (err, stdout) {
+        if (err) {
+          defer.reject(err);
 
-    } else {
-      image.Key.replace(/^images/, "thumbs");
-      image.Body = new Buffer(stdout, 'binary');
+        } else {
+          image.Body = stdout;
+          image.Key = image.Key.replace(/^images/, "thumbs");
 
-      defer.resolve(image);
-    }
-  });
+          defer.resolve(image);
+        }
+      });
 
   return defer.promise;
-}
-
-function updateDatabase() {
-  console.error("database updated");
 }
 
 module.exports = {
   parse: parse,
   s3GetObject: s3GetObjectPromise,
   s3PutObject: s3PutObjectPromise,
-  makeThumbnail: makeThumbnail,
-  updateDatabase: updateDatabase
+  makeThumbnail: makeThumbnail
 };
